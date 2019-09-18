@@ -10,7 +10,7 @@ from aqx import sshlib
 log = logging.getLogger(__name__)
 
 
-def get_default_api(service, config_ini="config.ini"):
+def get_default_api(service, config_ini=".aqx.ini"):
     kwargs = {}
     if config_ini is not None:
         config_path = os.path.join(os.getcwd(), config_ini)

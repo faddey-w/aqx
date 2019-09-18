@@ -5,7 +5,7 @@ import logging
 import warnings
 
 
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 
 
 class SSH:
@@ -116,6 +116,7 @@ class SSH:
         user = self._connect_params["username"]
         return (
             f"ssh {self.connect_commandline_flags} "
+            f"-A "
             f"-i {self._private_key_path} "
             f"{user}@{self._address}"
         )

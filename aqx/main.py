@@ -5,7 +5,7 @@ import argparse
 def main_ssh():
     cli = argparse.ArgumentParser()
     cli.add_argument("server", nargs="?")
-    cli.add_argument("--config", "-C", default="config.ini")
+    cli.add_argument("--config", "-C", default=".aqx.ini")
 
     def call(opts):
         from aqx.tools import ssh
@@ -18,7 +18,7 @@ def main_ssh():
 def main_filetransfer():
     cli = argparse.ArgumentParser()
     cli.add_argument("server", nargs="?")
-    cli.add_argument("--config", "-C", default="config.ini")
+    cli.add_argument("--config", "-C", default=".aqx.ini")
     cli.add_argument("direction", choices=["get", "put"])
     cli.add_argument("file1")
     cli.add_argument("file2", nargs="?")
@@ -38,7 +38,7 @@ def main_filetransfer():
 def main_cmd():
     cli = argparse.ArgumentParser()
     cli.add_argument("--server", "-S")
-    cli.add_argument("--config", "-C", default="config.ini")
+    cli.add_argument("--config", "-C", default=".aqx.ini")
     cli.add_argument("command", nargs="*")
 
     def call(opts):
@@ -51,13 +51,13 @@ def main_cmd():
 
 def main_deploy():
     cli = argparse.ArgumentParser()
-    cli.add_argument("server", nargs="?")
-    cli.add_argument("--config", "-C", default="config.ini")
+    cli.add_argument("servers", nargs="+")
+    cli.add_argument("--config", "-C", default=".aqx.ini")
 
     def call(opts):
         from aqx.tools import deploy
 
-        return deploy.main(opts.config, opts.server)
+        return deploy.main(opts.config, opts.servers)
 
     _run_main(cli, call)
 
@@ -65,7 +65,7 @@ def main_deploy():
 def main_openserver():
     cli = argparse.ArgumentParser()
     cli.add_argument("server", nargs="?")
-    cli.add_argument("--config", "-C", default="config.ini")
+    cli.add_argument("--config", "-C", default=".aqx.ini")
     cli.add_argument("--port", "-p", type=int)
 
     def call(opts):

@@ -5,6 +5,16 @@ from typing import Tuple
 from aqx.sshlib import SSH
 
 
+def maybe_resolve_host_alias(ini_file, server_name):
+    if server_name is None:
+        return server_name
+    cp = configparser.ConfigParser()
+    cp.read([ini_file])
+    if cp.has_section("server.host-aliases"):
+        server_name = cp.get("server.host-aliases", server_name, fallback=server_name)
+    return server_name
+
+
 def get_ssh_connection(ini_file, server_name=None) -> Tuple[SSH, str]:
 
     cp = configparser.ConfigParser()
@@ -17,9 +27,10 @@ def get_ssh_connection(ini_file, server_name=None) -> Tuple[SSH, str]:
         api = EC2Instances(config_ini=ini_file)
         instance_name = server_name[4:]
         instance = api.get_by(name=instance_name)
-        private_key_path = cp.get("server.aws", "private_key_path")
-        username = cp.get("server.aws", "user_" + instance_name)
-        home_dir = cp.get("server.aws", "home_dir").format(user=username)
+        inst_ini_section = "server.aws." + instance_name
+        private_key_path = cp.get(inst_ini_section, "private_key_path")
+        username = cp.get(inst_ini_section, "user")
+        home_dir = cp.get(inst_ini_section, "home_dir")
         return api.get_ssh(instance, private_key_path, username), home_dir
     section = f"server.{server_name}"
     ssh_user = cp.get(section, "ssh_user")
@@ -71,7 +82,7 @@ def upload_file_or_directory(ssh: SSH, local_path, remote_path, callback=None):
                 relpath = os.path.relpath(file_path, local_path)
                 display_path = file_path
                 with open(file_path, "rb") as f:
-                    ssh.send_file(os.path.join(remote_path, relpath), f)
+                    ssh.send_file(os.path.join(remote_path, relpath), f, wrap_callback)
     else:
         display_path = local_path
         with open(local_path, "rb") as f:
