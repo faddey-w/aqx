@@ -1,8 +1,12 @@
 import configparser
 import stat
 import os
+import logging
 from typing import Tuple
 from aqx.sshlib import SSH
+
+
+log = logging.getLogger(__name__)
 
 
 def maybe_resolve_host_alias(ini_file, server_name):
@@ -36,34 +40,52 @@ def get_ssh_connection(ini_file, server_name=None) -> Tuple[SSH, str]:
     ssh_user = cp.get(section, "ssh_user")
     ssh_address = cp.get(section, "ssh_address")
     home_dir = cp.get(section, "home_dir")
-    client = SSH(ssh_address, ssh_user)
+    private_key_path = cp.get(section, "private_key_path", fallback=None)
+    client = SSH(ssh_address, ssh_user, private_key_path)
     return client, home_dir
 
 
 def download_file_or_directory(
-    ssh: SSH, remote_path, local_path, callback=None, _remote_st=None, _relpath=""
+    ssh: SSH,
+    remote_path,
+    local_path,
+    callback=None,
+    skip_existing=False,
+    _remote_st=None,
+    _relpath="",
 ):
     if _remote_st is None:
         _remote_st = ssh.stat_file(remote_path)
     if _remote_st is None:
         raise FileNotFoundError(remote_path)
+    local_dir = os.path.dirname(local_path)
+    if local_dir != "":
+        os.makedirs(local_dir, exist_ok=True)
     if stat.S_ISDIR(_remote_st.st_mode):
         fileattrs = ssh.listdir(remote_path, with_attrs=True)
-        os.makedirs(local_path)
+        os.makedirs(local_path, exist_ok=True)
         for fattr in fileattrs:
             download_file_or_directory(
                 ssh,
                 os.path.join(remote_path, fattr.filename),
                 os.path.join(local_path, fattr.filename),
                 callback,
+                skip_existing=skip_existing,
                 _remote_st=fattr,
                 _relpath=os.path.join(_relpath, fattr.filename),
             )
     else:
+
         def wrap_callback(n_done, n_total):
             if callback:
                 callback(_relpath, n_done, n_total)
 
+        if skip_existing and os.path.exists(local_path):
+            log.info(
+                f'skip remote file "{remote_path}" '
+                f'- already exists locally at "{local_path}"'
+            )
+            return
         ssh.download_file(remote_path, local_path, wrap_callback)
 
 
@@ -71,6 +93,7 @@ def upload_file_or_directory(ssh: SSH, local_path, remote_path, callback=None):
     def wrap_callback(n_done, n_total):
         if callback:
             callback(display_path, n_done, n_total)
+
     if os.path.isdir(local_path):
         for parentdir, dirs, files in os.walk(local_path):
             dir_relpath = os.path.relpath(parentdir, local_path)

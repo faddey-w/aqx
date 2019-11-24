@@ -11,17 +11,29 @@ log = logging.getLogger(__name__)
 
 
 def get_default_api(service, config_ini=".aqx.ini"):
-    kwargs = {}
+    if config_ini is not None:
+        cp = _load_config(config_ini)
+    else:
+        cp = None
+    return _get_default_api(service, cp)
+
+
+def _load_config(config_ini=None) -> configparser.ConfigParser:
+    cp = configparser.ConfigParser()
     if config_ini is not None:
         config_path = os.path.join(os.getcwd(), config_ini)
-        cp = configparser.ConfigParser()
         cp.read(config_path)
-        if cp.has_section("aws.access"):
-            kwargs.update(
-                aws_access_key_id=cp.get("aws.access", "access_token"),
-                aws_secret_access_key=cp.get("aws.access", "secret_token"),
-                region_name=cp.get("aws.access", "region"),
-            )
+    return cp
+
+
+def _get_default_api(service, config: configparser.ConfigParser = None):
+    kwargs = {}
+    if config is not None and config.has_section("aws.access"):
+        kwargs.update(
+            aws_access_key_id=config.get("aws.access", "access_token"),
+            aws_secret_access_key=config.get("aws.access", "secret_token"),
+            region_name=config.get("aws.access", "region"),
+        )
 
     return boto3.client(service, **kwargs)
 
@@ -38,8 +50,14 @@ class EC2Instance:
 
 class EC2Instances:
     def __init__(self, api=None, config_ini=None):
-        self.api = api or get_default_api("ec2", config_ini)
+        cfg = _load_config(config_ini)
+        self.api = api or _get_default_api("ec2", cfg)
         self._cache = None
+        self.use_private_ip = False
+        if cfg and cfg.has_section("aws.options"):
+            self.use_private_ip = cfg.getboolean(
+                "aws.options", "ec2_use_private_ip", fallback=False
+            )
 
     def create(self, name, instance_type, ssh_key_id):
         raise NotImplementedError
@@ -65,7 +83,10 @@ class EC2Instances:
                 key_name=inst["KeyName"],
             )
             if inst_obj.state == "running":
-                inst_obj.ip_address = inst["PublicIpAddress"]
+                if self.use_private_ip:
+                    inst_obj.ip_address = inst["PrivateIpAddress"]
+                else:
+                    inst_obj.ip_address = inst["PublicIpAddress"]
             result.append(inst_obj)
         log.debug("found instances on AWS: %s", result)
         return result

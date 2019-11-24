@@ -19,6 +19,7 @@ def main_filetransfer():
     cli = argparse.ArgumentParser()
     cli.add_argument("server", nargs="?")
     cli.add_argument("--config", "-C", default=".aqx.ini")
+    cli.add_argument("--skip-existing", action="store_true")
     cli.add_argument("direction", choices=["get", "put"])
     cli.add_argument("file1")
     cli.add_argument("file2", nargs="?")
@@ -28,8 +29,15 @@ def main_filetransfer():
 
         if opts.file2 is None:
             opts.file2 = opts.file1
+        if opts.skip_existing and opts.direction != "get":
+            cli.error("--skip-existing is only supported for direction=get")
         return filetransfer.main(
-            opts.config, opts.server, opts.direction == "get", opts.file1, opts.file2
+            opts.config,
+            opts.server,
+            opts.direction == "get",
+            opts.file1,
+            opts.file2,
+            skip_existing=opts.skip_existing,
         )
 
     _run_main(cli, call)
@@ -80,9 +88,9 @@ def _run_main(cli, func):
     opts = cli.parse_args()
 
     import logging
+
     logging.basicConfig(level=logging.INFO)
 
     import sys
+
     sys.exit(func(opts))
-
-

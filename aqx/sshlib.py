@@ -50,6 +50,7 @@ class SSH:
     def cmd_stream(self, command: str):
         log.info("%r: cmd: %s", self, command)
         chan = self._client.get_transport().open_session()  # type: paramiko.Channel
+        paramiko.agent.AgentRequestHandler(chan)
         chan.exec_command(command)
         stdout = chan.makefile("rb")
         stderr = chan.makefile_stderr("rb")
