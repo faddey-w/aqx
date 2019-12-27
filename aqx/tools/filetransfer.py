@@ -3,7 +3,7 @@ import tqdm
 from aqx import sshutils
 
 
-def main(config_ini, server, is_download, file1, file2, skip_existing):
+def main(config_ini, server, is_download, file1, file2, skip_existing, pattern):
     server = sshutils.maybe_resolve_host_alias(config_ini, server)
     ssh_conn, home_dir = sshutils.get_ssh_connection(config_ini, server)
 
@@ -31,6 +31,7 @@ def main(config_ini, server, is_download, file1, file2, skip_existing):
                 file2,
                 callback,
                 skip_existing=skip_existing,
+                pattern=pattern,
             )
         else:
             sshutils.upload_file_or_directory(

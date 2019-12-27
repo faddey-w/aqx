@@ -20,6 +20,7 @@ def main_filetransfer():
     cli.add_argument("server", nargs="?")
     cli.add_argument("--config", "-C", default=".aqx.ini")
     cli.add_argument("--skip-existing", action="store_true")
+    cli.add_argument("--pattern")
     cli.add_argument("direction", choices=["get", "put"])
     cli.add_argument("file1")
     cli.add_argument("file2", nargs="?")
@@ -38,6 +39,7 @@ def main_filetransfer():
             opts.file1,
             opts.file2,
             skip_existing=opts.skip_existing,
+            pattern=opts.pattern,
         )
 
     _run_main(cli, call)

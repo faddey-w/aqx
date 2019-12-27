@@ -2,6 +2,7 @@ import configparser
 import stat
 import os
 import logging
+import fnmatch
 from typing import Tuple
 from aqx.sshlib import SSH
 
@@ -51,6 +52,7 @@ def download_file_or_directory(
     local_path,
     callback=None,
     skip_existing=False,
+    pattern=None,
     _remote_st=None,
     _relpath="",
 ):
@@ -58,12 +60,8 @@ def download_file_or_directory(
         _remote_st = ssh.stat_file(remote_path)
     if _remote_st is None:
         raise FileNotFoundError(remote_path)
-    local_dir = os.path.dirname(local_path)
-    if local_dir != "":
-        os.makedirs(local_dir, exist_ok=True)
     if stat.S_ISDIR(_remote_st.st_mode):
         fileattrs = ssh.listdir(remote_path, with_attrs=True)
-        os.makedirs(local_path, exist_ok=True)
         for fattr in fileattrs:
             download_file_or_directory(
                 ssh,
@@ -71,14 +69,16 @@ def download_file_or_directory(
                 os.path.join(local_path, fattr.filename),
                 callback,
                 skip_existing=skip_existing,
+                pattern=pattern,
                 _remote_st=fattr,
                 _relpath=os.path.join(_relpath, fattr.filename),
             )
     else:
 
-        def wrap_callback(n_done, n_total):
-            if callback:
-                callback(_relpath, n_done, n_total)
+        if pattern is not None:
+            remote_name = os.path.basename(remote_path)
+            if not fnmatch.fnmatch(remote_name, pattern):
+                return
 
         if skip_existing and os.path.exists(local_path):
             log.info(
@@ -86,6 +86,14 @@ def download_file_or_directory(
                 f'- already exists locally at "{local_path}"'
             )
             return
+
+        def wrap_callback(n_done, n_total):
+            if callback:
+                callback(_relpath, n_done, n_total)
+
+        local_dir = os.path.dirname(local_path)
+        if local_dir != "":
+            os.makedirs(local_dir, exist_ok=True)
         ssh.download_file(remote_path, local_path, wrap_callback)
 
 
