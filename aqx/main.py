@@ -9,8 +9,10 @@ def main_ssh():
 
     def call(opts):
         from aqx.tools import ssh
+        from aqx.core import AppService
 
-        return ssh.main(opts.config, opts.server)
+        app = AppService(opts.config)
+        return ssh.main(app, opts.server)
 
     _run_main(cli, call)
 
@@ -27,13 +29,15 @@ def main_filetransfer():
 
     def call(opts):
         from aqx.tools import filetransfer
+        from aqx.core import AppService
 
+        app = AppService(opts.config)
         if opts.file2 is None:
             opts.file2 = opts.file1
         if opts.skip_existing and opts.direction != "get":
             cli.error("--skip-existing is only supported for direction=get")
         return filetransfer.main(
-            opts.config,
+            app,
             opts.server,
             opts.direction == "get",
             opts.file1,
@@ -45,20 +49,6 @@ def main_filetransfer():
     _run_main(cli, call)
 
 
-def main_cmd():
-    cli = argparse.ArgumentParser()
-    cli.add_argument("--server", "-S")
-    cli.add_argument("--config", "-C", default=".aqx.ini")
-    cli.add_argument("command", nargs="*")
-
-    def call(opts):
-        from aqx.tools import cmd
-
-        return cmd.main(opts.config, opts.server, opts.command)
-
-    _run_main(cli, call)
-
-
 def main_deploy():
     cli = argparse.ArgumentParser()
     cli.add_argument("servers", nargs="+")
@@ -66,22 +56,26 @@ def main_deploy():
 
     def call(opts):
         from aqx.tools import deploy
+        from aqx.core import AppService
 
-        return deploy.main(opts.config, opts.servers)
+        app = AppService(opts.config)
+        return deploy.main(app, opts.servers)
 
     _run_main(cli, call)
 
 
 def main_openserver():
     cli = argparse.ArgumentParser()
-    cli.add_argument("server", nargs="?")
     cli.add_argument("--config", "-C", default=".aqx.ini")
-    cli.add_argument("--port", "-p", type=int)
+    cli.add_argument("server")
+    cli.add_argument("port", type=int)
 
     def call(opts):
         from aqx.tools import openserver
+        from aqx.core import AppService
 
-        return openserver.main(opts.config, opts.server, opts.port)
+        app = AppService(opts.config)
+        return openserver.main(app, opts.server, opts.port)
 
     _run_main(cli, call)
 

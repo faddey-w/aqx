@@ -1,11 +1,12 @@
 import os
 import tqdm
-from aqx import sshutils
+from aqx import sshlib, core
 
 
-def main(config_ini, server, is_download, file1, file2, skip_existing, pattern):
-    server = sshutils.maybe_resolve_host_alias(config_ini, server)
-    ssh_conn, home_dir = sshutils.get_ssh_connection(config_ini, server)
+def main(app: core.AppService, server, is_download, file1, file2, skip_existing, pattern):
+    server = app.maybe_resolve_host_alias(server)
+    ssh_conn = app.create_ssh_connection(server)
+    home_dir = ssh_conn.home_dir
 
     with ssh_conn:
         pb = None
@@ -25,7 +26,7 @@ def main(config_ini, server, is_download, file1, file2, skip_existing, pattern):
             pb.update(0)
 
         if is_download:
-            sshutils.download_file_or_directory(
+            sshlib.download_file_or_directory(
                 ssh_conn,
                 os.path.join(home_dir, file1),
                 file2,
@@ -34,7 +35,7 @@ def main(config_ini, server, is_download, file1, file2, skip_existing, pattern):
                 pattern=pattern,
             )
         else:
-            sshutils.upload_file_or_directory(
+            sshlib.upload_file_or_directory(
                 ssh_conn, file1, os.path.join(home_dir, file2), callback
             )
 

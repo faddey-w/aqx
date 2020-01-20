@@ -1,6 +1,4 @@
 import boto3
-import configparser
-import os
 import time
 import logging
 import dataclasses
@@ -10,29 +8,21 @@ from aqx import sshlib
 log = logging.getLogger(__name__)
 
 
-def get_default_api(service, config_ini=".aqx.ini"):
-    if config_ini is not None:
-        cp = _load_config(config_ini)
-    else:
-        cp = None
-    return _get_default_api(service, cp)
+@dataclasses.dataclass
+class Options:
+    aws_access_key_id: str = None
+    aws_secret_access_key: str = None
+    region_name: str = None
+    ec2_use_private_ip: bool = False
 
 
-def _load_config(config_ini=None) -> configparser.ConfigParser:
-    cp = configparser.ConfigParser()
-    if config_ini is not None:
-        config_path = os.path.join(os.getcwd(), config_ini)
-        cp.read(config_path)
-    return cp
-
-
-def _get_default_api(service, config: configparser.ConfigParser = None):
+def get_default_api(service, options: Options = None):
     kwargs = {}
-    if config is not None and config.has_section("aws.access"):
+    if options is not None:
         kwargs.update(
-            aws_access_key_id=config.get("aws.access", "access_token"),
-            aws_secret_access_key=config.get("aws.access", "secret_token"),
-            region_name=config.get("aws.access", "region"),
+            aws_access_key_id=options.aws_access_key_id,
+            aws_secret_access_key=options.aws_secret_access_key,
+            region_name=options.region_name,
         )
 
     return boto3.client(service, **kwargs)
@@ -49,15 +39,12 @@ class EC2Instance:
 
 
 class EC2Instances:
-    def __init__(self, api=None, config_ini=None):
-        cfg = _load_config(config_ini)
-        self.api = api or _get_default_api("ec2", cfg)
+    def __init__(self, api=None, options: Options = None):
+        if options is None:
+            options = Options()
+        self.api = api or get_default_api("ec2", options)
         self._cache = None
-        self.use_private_ip = False
-        if cfg and cfg.has_section("aws.options"):
-            self.use_private_ip = cfg.getboolean(
-                "aws.options", "ec2_use_private_ip", fallback=False
-            )
+        self.use_private_ip = options.ec2_use_private_ip
 
     def create(self, name, instance_type, ssh_key_id):
         raise NotImplementedError

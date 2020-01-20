@@ -3,13 +3,16 @@ import io
 import paramiko
 import logging
 import warnings
+import stat
+import fnmatch
+import threading
 
 
 log = logging.getLogger(__name__)
 
 
 class SSH:
-    def __init__(self, ssh_address, ssh_user, private_key_path=None):
+    def __init__(self, ssh_address, ssh_user, private_key_path=None, home_dir=None):
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         if ssh_address.count(":") == 1:
@@ -28,6 +31,8 @@ class SSH:
         self._client = client
         self._sftp = None
         self.connect_commandline_flags = ""
+        self.home_dir = home_dir
+        self._connected = threading.Event()
 
     def __enter__(self):
         self.start()
@@ -41,11 +46,17 @@ class SSH:
             # annoying deprecation warning from Crypto lib
             warnings.simplefilter("ignore")
             self._client.connect(**self._connect_params)
+            self._connected.set()
 
     def stop(self):
+        self._connected.clear()
         if self._sftp is not None:
             self._sftp.close()
         self._client.close()
+    
+    @property
+    def connected(self):
+        return self._connected.isSet()
 
     def cmd_stream(self, command: str):
         log.info("%r: cmd: %s", self, command)
@@ -132,3 +143,78 @@ class SSH:
 
 class SshCommandError(Exception):
     pass
+
+
+def download_file_or_directory(
+    ssh: SSH,
+    remote_path,
+    local_path,
+    callback=None,
+    skip_existing=False,
+    pattern=None,
+    _remote_st=None,
+    _relpath="",
+):
+    if _remote_st is None:
+        _remote_st = ssh.stat_file(remote_path)
+    if _remote_st is None:
+        raise FileNotFoundError(remote_path)
+    if stat.S_ISDIR(_remote_st.st_mode):
+        fileattrs = ssh.listdir(remote_path, with_attrs=True)
+        for fattr in fileattrs:
+            download_file_or_directory(
+                ssh,
+                os.path.join(remote_path, fattr.filename),
+                os.path.join(local_path, fattr.filename),
+                callback,
+                skip_existing=skip_existing,
+                pattern=pattern,
+                _remote_st=fattr,
+                _relpath=os.path.join(_relpath, fattr.filename),
+            )
+    else:
+
+        if pattern is not None:
+            remote_name = os.path.basename(remote_path)
+            if not fnmatch.fnmatch(remote_name, pattern):
+                return
+
+        if skip_existing and os.path.exists(local_path):
+            log.info(
+                f'skip remote file "{remote_path}" '
+                f'- already exists locally at "{local_path}"'
+            )
+            return
+
+        def wrap_callback(n_done, n_total):
+            if callback:
+                callback(_relpath, n_done, n_total)
+
+        local_dir = os.path.dirname(local_path)
+        if local_dir != "":
+            os.makedirs(local_dir, exist_ok=True)
+        ssh.download_file(remote_path, local_path, wrap_callback)
+
+
+def upload_file_or_directory(ssh: SSH, local_path, remote_path, callback=None):
+    def wrap_callback(n_done, n_total):
+        if callback:
+            callback(display_path, n_done, n_total)
+
+    if os.path.isdir(local_path):
+        for parentdir, dirs, files in os.walk(local_path):
+            dir_relpath = os.path.relpath(parentdir, local_path)
+            if dir_relpath == ".":
+                dir_relpath = ""
+            ssh.cmd("mkdir " + os.path.join(remote_path, dir_relpath))
+            for fname in files:
+                file_path = os.path.join(parentdir, fname)
+                relpath = os.path.relpath(file_path, local_path)
+                display_path = file_path
+                with open(file_path, "rb") as f:
+                    ssh.send_file(os.path.join(remote_path, relpath), f, wrap_callback)
+    else:
+        display_path = local_path
+        with open(local_path, "rb") as f:
+            ssh.send_file(remote_path, f, wrap_callback)
+

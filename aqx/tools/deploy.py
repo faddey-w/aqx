@@ -3,8 +3,7 @@
 import subprocess
 import logging
 import datetime
-from aqx import sshlib
-from aqx import sshutils
+from aqx import sshlib, core
 
 
 log = logging.getLogger(__name__)
@@ -47,11 +46,12 @@ def freshen_remote(client: sshlib.SSH, remote_dir: str):
     client.cmd(f"cd {remote_dir}; git pull")
 
 
-def main(config_ini, servers):
+def main(app: core.AppService, servers):
     for server in servers:
-        server = sshutils.maybe_resolve_host_alias(config_ini, server)
+        server = app.maybe_resolve_host_alias(server)
         log.info("Deploying to server %s...", server)
-        ssh_conn, remote_path = sshutils.get_ssh_connection(config_ini, server)
+        ssh_conn = app.create_ssh_connection(server)
+        remote_path = ssh_conn.home_dir
 
         with ssh_conn:
 
