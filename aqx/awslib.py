@@ -2,7 +2,6 @@ import boto3
 import time
 import logging
 import dataclasses
-from aqx import sshlib
 
 
 log = logging.getLogger(__name__)
@@ -13,7 +12,6 @@ class Options:
     aws_access_key_id: str = None
     aws_secret_access_key: str = None
     region_name: str = None
-    ec2_use_private_ip: bool = False
 
 
 def get_default_api(service, options: Options = None):
@@ -44,7 +42,6 @@ class EC2Instances:
             options = Options()
         self.api = api or get_default_api("ec2", options)
         self._cache = None
-        self.use_private_ip = options.ec2_use_private_ip
 
     def create(self, name, instance_type, ssh_key_id):
         raise NotImplementedError
@@ -70,10 +67,7 @@ class EC2Instances:
                 key_name=inst["KeyName"],
             )
             if inst_obj.state == "running":
-                if self.use_private_ip:
-                    inst_obj.ip_address = inst["PrivateIpAddress"]
-                else:
-                    inst_obj.ip_address = inst["PublicIpAddress"]
+                inst_obj.ip_address = inst["PublicIpAddress"]
             result.append(inst_obj)
         log.debug("found instances on AWS: %s", result)
         return result
@@ -112,6 +106,8 @@ class EC2Instances:
         raise NotImplementedError
 
     def get_ssh(self, instance, key_path, user="ec2-user"):
+        from aqx import sshlib
+
         if isinstance(instance, EC2Instance):
             ip_addr = instance.ip_address
         else:
@@ -119,9 +115,6 @@ class EC2Instances:
             instance = self.get_by(id=inst_id)
             ip_addr = instance.ip_address
         conn = sshlib.SSH(ip_addr, user, private_key_path=key_path)
-        conn.connect_commandline_flags = (
-            "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
-        )
         return conn
 
     def _get_instance_id(self, instance):

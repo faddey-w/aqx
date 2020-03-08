@@ -50,7 +50,7 @@ def main(app: core.AppService, servers):
     for server in servers:
         server = app.maybe_resolve_host_alias(server)
         log.info("Deploying to server %s...", server)
-        ssh_conn = app.create_ssh_connection(server)
+        ssh_conn = app.get_host(server).make_ssh_connection()
         remote_path = ssh_conn.home_dir
 
         with ssh_conn:

@@ -4,6 +4,6 @@ from aqx import core
 
 def main(app: core.AppService, server, port):
     server = app.maybe_resolve_host_alias(server)
-    ssh_conn = app.create_ssh_connection(server)
-    url = f"http://{ssh_conn.remote_host}:{port}"
+    address = app.get_host(server).get_inet_address()
+    url = f"http://{address}:{port}"
     webbrowser.open(url)

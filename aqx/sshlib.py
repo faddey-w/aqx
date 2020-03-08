@@ -30,7 +30,6 @@ class SSH:
         self._private_key_path = private_key_path
         self._client = client
         self._sftp = None
-        self.connect_commandline_flags = ""
         self.home_dir = home_dir
         self._connected = threading.Event()
 
@@ -128,15 +127,6 @@ class SSH:
         if not with_attrs:
             files = [f.filename for f in files]
         return files
-
-    def get_connect_commandline(self):
-        user = self._connect_params["username"]
-        return (
-            f"ssh {self.connect_commandline_flags} "
-            f"-A "
-            f"-i {self._private_key_path} "
-            f"{user}@{self._address}"
-        )
 
     def __repr__(self):
         return f"SSH({self._connect_params['username']}@{self._address})"

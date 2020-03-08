@@ -7,7 +7,7 @@ def main(
     app: core.AppService, server, is_download, file1, file2, skip_existing, pattern
 ):
     server = app.maybe_resolve_host_alias(server)
-    ssh_conn = app.create_ssh_connection(server)
+    ssh_conn = app.get_host(server).make_ssh_connection()
 
     with ssh_conn:
         run_filetransfer(ssh_conn, is_download, file1, file2, skip_existing, pattern)
