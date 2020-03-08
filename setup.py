@@ -8,10 +8,9 @@ setup(
     install_requires=["boto3", "tqdm", "paramiko"],
     python_requires=">=3.6.0",
     entry_points={"console_scripts": [
-        "aqx-cmd=aqx.main:main_cmd",
-        "aqx-deploy=aqx.main:main_deploy",
-        "aqx-filetransfer=aqx.main:main_filetransfer",
-        "aqx-openserver=aqx.main:main_openserver",
-        "aqx-ssh=aqx.main:main_ssh",
+        "aqx-deploy=aqx.main_local:main_deploy",
+        "aqx-filetransfer=aqx.main_local:main_filetransfer",
+        "aqx-openserver=aqx.main_local:main_openserver",
+        "aqx-ssh=aqx.main_local:main_ssh",
     ]},
 )

@@ -53,7 +53,7 @@ class SSH:
         if self._sftp is not None:
             self._sftp.close()
         self._client.close()
-    
+
     @property
     def connected(self):
         return self._connected.isSet()
@@ -65,7 +65,12 @@ class SSH:
         chan.exec_command(command)
         stdout = chan.makefile("rb")
         stderr = chan.makefile_stderr("rb")
-        wait_fn = chan.recv_exit_status
+
+        def wait_fn():
+            rc = chan.recv_exit_status()
+            chan.close()
+            return rc
+
         return wait_fn, stdout, stderr
 
     def cmd(self, command: str) -> bytes:
@@ -217,4 +222,3 @@ def upload_file_or_directory(ssh: SSH, local_path, remote_path, callback=None):
         display_path = local_path
         with open(local_path, "rb") as f:
             ssh.send_file(remote_path, f, wrap_callback)
-

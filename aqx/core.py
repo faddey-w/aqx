@@ -62,3 +62,61 @@ class AppService:
         home_dir = cp.get(section, "home_dir")
         private_key_path = cp.get(section, "private_key_path", fallback=None)
         return SSH(ssh_address, ssh_user, private_key_path, home_dir)
+
+
+class ExecutionService:
+    def __init__(self):
+        self._executor = ThreadPoolExecutor()
+        self._lock = threading.Lock()
+        self._ssh_connections = {}
+        self._pinger_thread = threading.Thread(
+            target=_wrap_with_dumping_traceback(self._ping_worker), daemon=True
+        )
+        self._pinger_thread.start()
+
+    def async_call(self, function, *args, **kwargs):
+        """
+        :return: Re-entrant blocking function that returns the result of call 
+        """
+        future = self._executor.submit(function, *args, **kwargs)
+        return future.result
+
+    def get_ssh_connection(self, server):
+        with self._lock:
+            return self._ssh_connections.pop(server)
+
+    def add_ssh_connection(self, server, ssh: SSH):
+        with self._lock:
+            self._ssh_connections[server] = ssh
+
+    def _ping_worker(self):
+        while True:
+            with self._lock:
+                keys_and_conns = list(self._ssh_connections.items())
+            for server, ssh in keys_and_conns:
+                should_stop = False
+                with self._lock:
+                    if ssh.connected:
+                        wait_fn, stdout, stderr = ssh.cmd_stream("echo")
+                        try:
+                            stdout.read()
+                            wait_fn()
+                        except socket.error:
+                            log.info(f"Failed to ping to server: {server}, {ssh}")
+                            should_stop = True
+                            if self._ssh_connections.get(server) is ssh:
+                                self._ssh_connections.pop(server)
+                if should_stop:
+                    ssh.stop()
+            time.sleep(60)
+
+
+def _wrap_with_dumping_traceback(function):
+    def wrapper(*args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except BaseException:
+            traceback.print_exc()
+            raise
+
+    return wrapper
