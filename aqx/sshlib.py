@@ -8,7 +8,7 @@ import fnmatch
 import threading
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("sshlib")
 
 
 class SSH:
