@@ -2,9 +2,8 @@
 
 import subprocess
 import logging
-import datetime
-import sys
 import threading
+from typing import Optional
 from concurrent.futures import Future
 from aqx import sshlib, core
 
@@ -33,17 +32,29 @@ def generate_patch():
         log.info("patch generated")
 
 
-def send_and_deploy_patch(client: sshlib.SSH, patch_contents: bytes, remote_dir: str):
-    rem_temp_file = client.cmd("mktemp").decode().strip()
-    # rem_temp_file = os.path.join(remote_dir, "tmp.patch")
-    client.cmd(f"cd {remote_dir}; git reset --hard")
+def send_patch(client: sshlib.SSH, patch_f):
+    patch_contents: bytes = patch_f.result()
     if patch_contents:
         log.info("%s: sending patch contents...", client)
+        rem_temp_file = client.cmd("mktemp").decode().strip()
         client.send_file(rem_temp_file, patch_contents)
-        client.cmd(f"cd {remote_dir}; git apply --index {rem_temp_file}")
-        client.cmd(f"rm {rem_temp_file}")
+        return rem_temp_file
+
+
+def deploy_patch(client: sshlib.SSH, remote_dir: str, remote_patch_file: Optional[str]):
+    client.cmd(f"cd {remote_dir}; git reset --hard")
+    if remote_patch_file is not None:
+        log.info("%s: installing patch...", client)
+        client.cmd(f"cd {remote_dir}; git apply --index {remote_patch_file}")
     else:
-        log.info("%s: no local changes to deploy with patch - just cancel remote changes", client)
+        log.info(
+            "%s: no local changes to deploy with patch - just cancel remote changes",
+            client)
+
+
+def cleanup_patch_on_remote(client: sshlib.SSH, remote_patch_file: Optional[str]):
+    if remote_patch_file is not None:
+        client.cmd(f"rm {remote_patch_file}")
 
 
 def freshen_remote(client: sshlib.SSH, remote_dir: str):
@@ -60,18 +71,26 @@ def deploy_one_server(app, server, local_commit_f, patch_f):
     remote_path = ssh_conn.home_dir
 
     with ssh_conn:
+        # send the patch in advance
+        # even if later we'll find that git hashes are not OK, we more win than lose
+        # because usually they're OK, so we save few additional seconds
+        remote_patch_file_f = _acall(send_patch, ssh_conn, patch_f)
 
+        # while patch is sending, check the git hashes
         remote_commit = get_remote_git_commit(ssh_conn, remote_path)
-
         local_commit = local_commit_f.result()
         if local_commit != remote_commit:
             freshen_remote(ssh_conn, remote_path)
             remote_commit = get_remote_git_commit(ssh_conn, remote_path)
 
-        if local_commit != remote_commit:
+        remote_patch_file = remote_patch_file_f.result()
+        # now patch is sent, so we can install it if everything is fine
+        if local_commit == remote_commit:
+            deploy_patch(ssh_conn, remote_path, remote_patch_file)
+            cleanup_patch_on_remote(ssh_conn, remote_patch_file)
+        else:
+            cleanup_patch_on_remote(ssh_conn, remote_patch_file)
             raise RevisionMismatchError
-        patch = patch_f.result()
-        send_and_deploy_patch(ssh_conn, patch, remote_path)
     log.info("%s: done", server)
 
 

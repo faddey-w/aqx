@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name="aqx",
-    version="0.0.2",
+    version="0.0.3",
     description="Command-line tools for developers",
     packages=["aqx", "aqx.tools"],
     install_requires=["boto3", "tqdm", "paramiko"],
